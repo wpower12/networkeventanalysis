@@ -26,7 +26,6 @@ df_mu = pd.read_csv(FN_RAWS_MENTION, header=0, parse_dates=[1], infer_datetime_f
 # df_cu = pd.read_csv(FN_RAWS_CENTRAL, header=0, parse_dates=[0], infer_datetime_format=True, low_memory=False)
 # df_mu = pd.read_csv(FN_RAWS_MENTION, header=0, parse_dates=[0], infer_datetime_format=True, low_memory=False)
 
-
 """
 Extracting User-Date nodes and creating a consistent index. 
 """
@@ -42,6 +41,10 @@ def str_to_list(s):
         return []
     return s.replace("[", "").replace("]", "").replace('\'', "").split(",")
 
+
+print("creating check set.")
+all_good_ids = set(df_cu['user_id'].unique())
+all_good_ids = all_good_ids.union(set(df_mu['user_id'].unique()))
 
 user_date_pairs = []      # indexed by tn_node_id, pointing to a (user_id, date) pair
 udp_set = set()
@@ -59,13 +62,13 @@ for label, df in [("central", df_cu), ("mentioned", df_mu)]:
         df_agg = user_tweets.groupby('datetime').agg(mentioned_users=('mentioned_users', aggregate_mn_lists))
         for row in df_agg.iterrows():
             date = row[0]
-            mus  = row[1]
+            mus  = row[1][0]
             user_date_pair = f"{user_id},{date}"
             pair_tn_id = len(user_date_pairs)
             user_date_pairs.append(user_date_pair)
             udp_set.add(user_date_pair)
             pair_to_tn_id[user_date_pair] = pair_tn_id
-            mu_pairs = [f"{mu},{date}" for mu in mus]
+            mu_pairs = ["{},{}".format(mu.replace(" ", ""), date) for mu in mus if mu in all_good_ids]
             user_date_mus.append(mu_pairs)
 
 """
@@ -126,3 +129,20 @@ pickle.dump(user_date_pairs, open(f"{DIR_OUT}/user_date_pairs.p", "wb"))
 pickle.dump(pair_to_tn_id, open(f"{DIR_OUT}/pair_to_tn_id.p", "wb"))
 pickle.dump(user_date_mus, open(f"{DIR_OUT}/user_date_mus.p", "wb"))
 pickle.dump(edges, open(f"{DIR_OUT}/edges.p", "wb"))
+
+with open(f"{DIR_OUT}/user_date_pairs.txt", 'w') as f:
+    for up in user_date_pairs:
+        f.write(f"{up}\n")
+
+with open(f"{DIR_OUT}/pair_to_tn_id.txt", 'w') as f:
+    for up in pair_to_tn_id:
+        tn_id = pair_to_tn_id[up]
+        f.write(f"{up}: {tn_id}\n")
+
+with open(f"{DIR_OUT}/user_date_mus.txt", 'w') as f:
+    for mus in user_date_mus:
+        f.write(f"{mus}\n")
+
+with open(f"{DIR_OUT}/edges.txt", 'w') as f:
+    for cu, ou in edges:
+        f.write(f"{cu}, {ou}\n")
